@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// Menu structur geändert , config von wlan durch file im spiff speicher
 
 #include <sys/param.h>
 #include "freertos/FreeRTOS.h"
@@ -29,6 +30,7 @@
 #include "app.h"
 #include "esp_app_format.h"
 #include "esp_ota_ops.h"
+#include "esp_spiffs.h"
 
 static const char *TAG = "app_main";
 QueueHandle_t s_default_queue_hdl = NULL;
@@ -257,6 +259,16 @@ void app_main(void)
         .use_external_phy = true
     };
     usb_hal_init(&hal);
+    // ... new init spiffs
+    esp_vfs_spiffs_conf_t spiffs_config = {
+        .base_path = "/spiffs",
+        .partition_label = NULL,
+        .max_files = 5,
+        .format_if_mount_failed = false
+    };
+    ESP_ERROR_CHECK(esp_vfs_spiffs_register(&spiffs_config));
+
+    // Jetzt können alle anderen Module sicher auf SPIFFS zugreifen!
 
     xTaskCreate(app_manager_task, "app_mng", 4096, NULL, TASK_APP_PRIO_MAX, NULL);
 
