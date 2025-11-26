@@ -77,22 +77,22 @@ static user_app_t const _app_driver[] =
 {
     {
         .app_name = "app menu",
-        .icon_name = "esp_logo.jpg",
+        .icon_name = "icon_flash.jpg",
         .init = app_menu_init,
         .deinit = app_menu_deinit,
         .p_queue_hdl = &g_app_menu_queue_hdl,
     },
     {
-        .app_name = "USB Wireless Disk",
-        .icon_name = "icon_flash.jpg",
+        .app_name = "Info",
+        .icon_name = "icon_flash_small.jpg",
         .init = usb_wireless_disk_init,
         .deinit = usb_wireless_disk_deinit,
         .p_queue_hdl = &g_disk_queue_hdl,
         .flags.restart_after_deinit = true,
     },
     {
-        .app_name = "USB Camera",
-        .icon_name = "icon_camera.jpg",
+        .app_name = "Config Copy",
+        .icon_name = "icon_config_small.jpg",
         .init = usb_camera_init,
         .deinit = usb_camera_deinit,
         .p_queue_hdl = &g_usb_camera_queue_hdl,
@@ -100,7 +100,7 @@ static user_app_t const _app_driver[] =
         // .flags.restart_after_deinit = false,
     },
     {
-        .app_name = "Mouse Device",
+        .app_name = "QR Wlan",
         .icon_name = "icon_mouse.jpg",
         .init = usb_hid_mouse_init,
         .deinit = usb_hid_mouse_deinit,
@@ -108,7 +108,7 @@ static user_app_t const _app_driver[] =
         .flags.restart_after_deinit = true,
     },
     {
-        .app_name = "Keyboard Device",
+        .app_name = "QR Git",
         .icon_name = "icon_keyboard.jpg",
         .init = usb_hid_keyboard_init,
         .deinit = usb_hid_keyboard_deinit,

@@ -31,7 +31,6 @@
 #include "esp_app_format.h"
 #include "esp_ota_ops.h"
 #include "esp_spiffs.h"
-/* --- Ergänzungen: quadrants start info --- */
 #include "display_printf.h"
 #include "display_painter.h"
 #include "jpegd2.h"
@@ -363,7 +362,7 @@ static void show_start_quadrants_info(void)
 
 void app_main(void)
 {
-    _print_info();
+    /* _print_info(); */
     iot_board_init();
     iot_board_usb_set_mode(USB_DEVICE_MODE);
     iot_board_usb_device_set_power(false, false);
@@ -379,6 +378,7 @@ void app_main(void)
         .format_if_mount_failed = false
     };
     ESP_ERROR_CHECK(esp_vfs_spiffs_register(&spiffs_config));
+    show_start_quadrants_info();
 
     // Jetzt können alle anderen Module sicher auf SPIFFS zugreifen!
 
