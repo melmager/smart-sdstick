@@ -22,6 +22,7 @@
 #include "tusb_msc.h"
 #include "qrcode.h"
 #include "app.h"
+#include "cJSON.h"
 
 static const char *TAG = "usb_msc_demo";
 #define EVENT_TASK_KILL_BIT_0	( 1 << 0 )
@@ -214,4 +215,66 @@ void usb_wireless_disk_deinit(void)
     vEventGroupDelete(s_event_group_hdl);
     s_event_group_hdl = NULL;
     ESP_LOGW(TAG, "Disk APP Deinited");
+}
+
+// add Wlan read from config.json file
+static bool wifi_config_from_json(const char *filename, char *ssid_out, char *pass_out)
+{
+    FILE *f = fopen(filename, "r");
+    if (!f) return false;
+    char buf[256] = {0};
+    fread(buf, 1, sizeof(buf)-1, f);
+    fclose(f);
+
+    cJSON *json = cJSON_Parse(buf);
+    if (!json) return false;
+    cJSON *j_ssid = cJSON_GetObjectItem(json, "ssid");
+    cJSON *j_pass = cJSON_GetObjectItem(json, "password");
+
+    if (!cJSON_IsString(j_ssid) || !cJSON_IsString(j_pass)) {
+        cJSON_Delete(json);
+        return false;
+    }
+    strncpy(ssid_out, j_ssid->valuestring, 63);
+    strncpy(pass_out, j_pass->valuestring, 63);
+    ssid_out[63] = 0;
+    pass_out[63] = 0;
+    cJSON_Delete(json);
+    return true;
+}
+
+static bool try_connect_wifi_from_sdcard()
+{
+    char ssid[64], password[64];
+    if (!wifi_config_from_json("/sdcard/config.json", ssid, password)) {
+        return false; // keine config gefunden oder fehlerhaft
+    }
+    // Standard ESP-IDF WiFi Init
+    wifi_config_t wifi_config = {0};
+    strncpy((char*)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
+    strncpy((char*)wifi_config.sta.password, password, sizeof(wifi_config.sta.password));
+    esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+    esp_wifi_connect();
+    // Optional: auf CONNECT-Event warten, mit Timeout!
+    return true;
+}
+
+typedef enum {
+    WIFI_MODE_AP,
+    WIFI_MODE_STA
+} wifi_mode_t;
+
+static void _display_wifi_info(wifi_mode_t mode, const char *ssid, const char *ip)
+{
+    DISPLAY_PRINTF_CLEAR();
+    if (mode == WIFI_MODE_STA) {
+        DISPLAY_PRINTF_LINE("WiFi", 5, COLOR_GREEN, "WLAN verbunden!");
+        DISPLAY_PRINTF_LINE("WiFi", 6, COLOR_BLUE, "SSID: %s", ssid ? ssid : "-");
+        DISPLAY_PRINTF_LINE("WiFi", 7, COLOR_GREEN, "IP: %s", ip ? ip : "-");
+    } else { // WIFI_MODE_AP
+        DISPLAY_PRINTF_LINE("WiFi", 5, COLOR_YELLOW, "AP-Modus aktiv!");
+        DISPLAY_PRINTF_LINE("WiFi", 6, COLOR_BLUE, "SSID: %s", ssid ? ssid : "smart-sdstick");
+        DISPLAY_PRINTF_LINE("WiFi", 7, COLOR_RED, "Server: %s", ip ? ip : "192.168.4.1");
+        // Optional: QR-Code etc.
+    }
 }

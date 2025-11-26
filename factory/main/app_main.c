@@ -31,6 +31,18 @@
 #include "esp_app_format.h"
 #include "esp_ota_ops.h"
 #include "esp_spiffs.h"
+/* --- Ergänzungen: quadrants start info --- */
+#include "display_printf.h"
+#include "display_painter.h"
+#include "jpegd2.h"
+#include "bsp_esp32_s3_usb_otg_ev.h"
+#include "esp_netif.h"
+#include <sys/statvfs.h>
+
+#define START_ICON_PATH "/spiffs/icon/esp_logo_small.jpg"
+#define ICON_BUF_SIZE (45 * 1024) // wie im Projekt
+#define ICON_W 64
+#define ICON_H 64
 
 static const char *TAG = "app_main";
 QueueHandle_t s_default_queue_hdl = NULL;
@@ -127,6 +139,10 @@ static void button_menu_long_press_cb(void *arg)
 __NOINIT_ATTR int s_driver_index = 0;
 static int s_active_driver_index = 0;
 static bool app_kill(int index);
+
+// leer einträge menu
+void empty_init(void) { /* keine Aktion */ }
+void empty_deinit(void) { /* keine Aktion */ }
 
 static bool app_launch(int index)
 {
@@ -248,6 +264,102 @@ static void _print_info()
     ESP_LOGI(TAG, "App version:      %s", app_desc->version);
     printf("\n");
 }
+
+static void show_start_quadrants_info(void)
+{
+    // init display helper (LCD handle ist erst nach iot_board_init() gültig!)
+    DISPLAY_PRINTF_INIT((scr_driver_t *)iot_board_get_handle(BOARD_LCD_ID));
+    DISPLAY_PRINTF_SET_FONT(Font16);
+    DISPLAY_PRINTF_CLEAR();
+
+    // Screen geometry (BOARD macros aus bsp header)
+    const int screen_w = BOARD_LCD_WIDTH;
+    const int screen_h = BOARD_LCD_HEIGHT;
+    const int mid_x = screen_w / 2;
+    const int mid_y = screen_h / 2;
+
+    // 1) draw dividing cross (simple white lines)
+    painter_draw_vertical_line(mid_x, 0, screen_h, COLOR_WHITE);
+    painter_draw_horizontal_line(0, mid_y, screen_w, COLOR_WHITE);
+
+    // 2) draw small logo top-left (0,0)
+    uint8_t *jpeg_buf = malloc(ICON_BUF_SIZE);
+    if (jpeg_buf) {
+        FILE *fd = fopen(START_ICON_PATH, "r");
+        if (fd) {
+            int read_bytes = fread(jpeg_buf, 1, ICON_BUF_SIZE, fd);
+            fclose(fd);
+            if (read_bytes > 0) {
+                // mjpegdraw(..., lcd_width, lcd_height) - use ICON_W/ICON_H as target
+                mjpegdraw(jpeg_buf, read_bytes, NULL, 0, 0, board_lcd_draw_image, ICON_W, ICON_H);
+            }
+        }
+        free(jpeg_buf);
+    }
+
+    // 3) prepare font metrics for absolute positioning
+    font_t font = display_printf_get_font();
+    int line_h = font.Height;
+    int pad = 4;
+
+    // Top-right quadrant: Chip / App info (x ~ mid_x + pad)
+    int tx = mid_x + pad;
+    int ty = pad;
+    esp_chip_info_t chip;
+    esp_chip_info(&chip);
+    const esp_app_desc_t *app_desc = esp_ota_get_app_description();
+    uint8_t mac[6] = {0};
+    esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
+
+    char buf[128];
+    snprintf(buf, sizeof(buf), "Project: %s", app_desc ? app_desc->project_name : "n/a");
+    painter_draw_string(tx, ty, buf, &font, COLOR_GREEN); ty += line_h;
+    snprintf(buf, sizeof(buf), "Ver: %s", app_desc ? app_desc->version : "n/a");
+    painter_draw_string(tx, ty, buf, &font, COLOR_BLUE); ty += line_h;
+    snprintf(buf, sizeof(buf), "MAC: %02x:%02x:%02x:%02x:%02x:%02x",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    painter_draw_string(tx, ty, buf, &font, COLOR_WHITE); ty += line_h;
+    snprintf(buf, sizeof(buf), "Chip: %s cores:%d rev:%d", CONFIG_IDF_TARGET, chip.cores, chip.revision);
+    painter_draw_string(tx, ty, buf, &font, COLOR_WHITE);
+
+    // Bottom-left quadrant: SD card info (x ~ pad, y ~ mid_y + pad)
+    int sx = pad;
+    int sy = mid_y + pad;
+    struct statvfs st;
+    if (statvfs(BOARD_SDCARD_BASE_PATH, &st) == 0) {
+        uint64_t total = (uint64_t)st.f_blocks * st.f_frsize;
+        uint64_t free  = (uint64_t)st.f_bfree  * st.f_frsize;
+        snprintf(buf, sizeof(buf), "SD: %lluMB free / %lluMB", free/1024/1024, total/1024/1024);
+        painter_draw_string(sx, sy, buf, &font, COLOR_YELLOW); sy += line_h;
+        // optional: mount path
+        snprintf(buf, sizeof(buf), "Mount: %s", BOARD_SDCARD_BASE_PATH);
+        painter_draw_string(sx, sy, buf, &font, COLOR_WHITE); sy += line_h;
+    } else {
+        painter_draw_string(sx, sy, "SD: not mounted", &font, COLOR_RED); sy += line_h;
+    }
+
+    // Bottom-right quadrant: Network info (AP / STA IPs) (x ~ mid_x + pad, y ~ mid_y + pad)
+    int nx = mid_x + pad;
+    int ny = mid_y + pad;
+    esp_netif_ip_info_t info;
+    esp_netif_t *ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+    if (ap_netif && esp_netif_get_ip_info(ap_netif, &info) == ESP_OK) {
+        snprintf(buf, sizeof(buf), "AP IP: " IPSTR, IP2STR(&info.ip));
+        painter_draw_string(nx, ny, buf, &font, COLOR_CYAN); ny += line_h;
+    } else {
+        painter_draw_string(nx, ny, "AP IP: -", &font, COLOR_CYAN); ny += line_h;
+    }
+    esp_netif_t *sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (sta_netif && esp_netif_get_ip_info(sta_netif, &info) == ESP_OK) {
+        snprintf(buf, sizeof(buf), "STA IP: " IPSTR, IP2STR(&info.ip));
+        painter_draw_string(nx, ny, buf, &font, COLOR_CYAN); ny += line_h;
+    } else {
+        painter_draw_string(nx, ny, "STA IP: -", &font, COLOR_CYAN); ny += line_h;
+    }
+
+    // fertig: kein return value, Display bleibt so stehen; app_manager_task kann später die Anzeige übernehmen
+}
+/* --- Ende Ergänzungen --- */
 
 void app_main(void)
 {
