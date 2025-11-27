@@ -37,26 +37,28 @@ typedef struct {
 #define TASK_APP_PRIO_MAX (configMAX_PRIORITIES-10)
 #define TASK_APP_PRIO_MIN 1
 
-extern void usb_camera_init(void);
-extern void usb_camera_deinit(void);
-extern void avi_player_init(void);
-extern void keyboard_init(void);
+extern void sd_init(void);
+extern void sd_deinit(void);
+extern void chip_init(void);
+extern void chip_deinit(void);
+extern void wlan_init(void);
+extern void wlan_deinit(void);
 extern void app_menu_init(void);
 extern void app_menu_deinit(void);
-extern void app_manual_init(void);
-extern void app_manual_deinit(void);
+extern void config_init(void);
+extern void config_deinit(void);
 extern void usb_wireless_disk_init(void);
 extern void usb_wireless_disk_deinit(void);
-extern void usb_hid_mouse_init(void);
-extern void usb_hid_mouse_deinit(void);
-extern void usb_hid_keyboard_init(void);
-extern void usb_hid_keyboard_deinit(void);
-extern QueueHandle_t g_usb_camera_queue_hdl;
+
+//extern QueueHandle_t g_usb_camera_queue_hdl;
 extern QueueHandle_t g_app_menu_queue_hdl;
-extern QueueHandle_t g_app_manual_queue_hdl;
+//extern QueueHandle_t g_app_manual_queue_hdl;
 extern QueueHandle_t g_disk_queue_hdl;
-extern QueueHandle_t g_usb_hid_mouse_hdl;
-extern QueueHandle_t g_usb_hid_keyboard_hdl;
+//extern QueueHandle_t g_usb_hid_mouse_hdl;
+//extern QueueHandle_t g_usb_hid_keyboard_hdl;
+//extern const user_app_t _app_driver[];
+//extern const int _app_driver_count;
+
 
 typedef enum {
     BTN_CLICK_MENU = 0,
@@ -73,7 +75,7 @@ typedef struct {
     hmi_event_id_t id;
 } hmi_event_t;
 
-static user_app_t const _app_driver[] =
+static  const _app_driver[] =
 {
     {
         .app_name = "app menu",
